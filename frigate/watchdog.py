@@ -18,6 +18,14 @@ class FrigateWatchdog(threading.Thread):
 
     def run(self) -> None:
         time.sleep(10)
+
+        if not self.detectors:
+            logger.info("No detectors found. Watchdog running in idle mode.")
+            while not self.stop_event.wait(10):
+                continue
+            logger.info("Exiting watchdog...")
+            return
+
         while not self.stop_event.wait(10):
             now = datetime.datetime.now().timestamp()
 

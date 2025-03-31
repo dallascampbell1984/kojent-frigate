@@ -1,4 +1,4 @@
-# Basic compose file for Kojent Frigate - Simple Startup
+# Advanced compose file for Kojent Frigate - Includes MQTT Environment Variables
 # Uses Docker named volumes by default. Edit .env file to customize or use bind mounts.
 version: '3.9'
 
@@ -10,13 +10,19 @@ volumes:
 services:
   # Use 'kojent-frigate' or your actual fork name
   frigate:
-    container_name: ${CONTAINER_NAME:-kojent-frigate} # Allow overriding name via .env
-    image: ${KOJENT_IMAGE:-kojensy/kojent-frigate:latest} # Allow overriding image via .env
+    container_name: ${CONTAINER_NAME:-kojent-frigate}
+    image: ${KOJENT_IMAGE:-kojensy/kojent-frigate:latest}
     restart: unless-stopped
-    privileged: true # Often needed for hardware access (USB, GPU passthrough etc.)
-    shm_size: ${SHM_SIZE:-1g} # Allow overriding SHM via .env, default 1g
+    privileged: true
+    shm_size: ${SHM_SIZE:-1g}
     environment:
-      - TZ=${TZ:-UTC} # Allow overriding Timezone via .env (e.g., America/Denver)
+      - TZ=${TZ:-UTC} # Set your timezone via .env if needed (e.g., America/Denver)
+      # --- MQTT Configuration (Values MUST be set in .env file) ---
+      - MQTT_HOST=${MQTT_HOST}
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MQTT_PORT=${MQTT_PORT:-1883} # Default MQTT port
+      # ---------------------------------------------------------
     devices:
       # --- Optional: Uncomment lines below if you use Coral devices or HW Accel ---
       # Ensure the correct device path for your host system is used.
@@ -39,4 +45,8 @@ services:
     #     reservations:
     #       devices:
     #         - capabilities: [gpu]
+
+  # NOTE: This file only includes Frigate. Users are expected to have
+  # Mosquitto and Home Assistant running separately. A full stack example
+  # including those could be provided elsewhere if desired.
 

@@ -436,41 +436,20 @@ class FrigateApp:
                 max(self.config.model.width, self.config.model.height),
             )
 
-    def start_camera_processors(self) -> None:
-        for name, config in self.config.cameras.items():
-            if not self.config.cameras[name].enabled:
-                logger.info(f"Camera processor not started for disabled camera {name}")
-                continue
-
-            camera_process = util.Process(
-                target=track_camera,
-                name=f"camera_processor:{name}",
-                args=(
-                    name,
-                    config,
-                    self.config.model,
-                    self.config.model.merged_labelmap,
-                    self.detection_queue,
-                    self.detection_out_events[name],
-                    self.detected_frames_queue,
-                    self.camera_metrics[name],
-                    self.ptz_metrics[name],
-                    self.region_grids[name],
-                ),
-                daemon=True,
-            )
-            self.camera_metrics[name].process = camera_process
-            camera_process.start()
-            logger.info(f"Camera processor started for {name}: {camera_process.pid}")
-
     def start_camera_capture_processes(self) -> None:
         shm_frame_count = self.shm_frame_count()
 
-        for name, config in self.config.cameras.items():
-            if not self.config.cameras[name].enabled:
-                logger.info(f"Capture process not started for disabled camera {name}")
-                continue
+        enabled_cameras = [
+            (name, config)
+            for name, config in self.config.cameras.items()
+            if config.enabled
+        ]
 
+        if not enabled_cameras:
+            logger.info("No enabled cameras found. Skipping shared memory allocation.")
+            return
+
+        for name, config in enabled_cameras:
             # pre-create shms
             for i in range(shm_frame_count):
                 frame_size = config.frame_shape_yuv[0] * config.frame_shape_yuv[1]
@@ -625,42 +604,51 @@ class FrigateApp:
                 logger.info("********************************************************")
 
     def start(self) -> None:
-        logger.info(f"Starting Frigate ({VERSION})")
+        logger.info(f"Starting Kojent Frigate ({VERSION})")
 
-        # Ensure global state.
         self.ensure_dirs()
-
-        # Start frigate services.
-        self.init_camera_metrics()
         self.init_queues()
         self.init_database()
-        self.init_onvif()
-        self.init_recording_manager()
-        self.init_review_segment_manager()
-        self.init_go2rtc()
-        self.start_detectors()
-        self.init_embeddings_manager()
         self.bind_database()
         self.check_db_data_migrations()
         self.init_inter_process_communicator()
-        self.init_dispatcher()
-        self.init_embeddings_client()
-        self.start_video_output_processor()
-        self.start_ptz_autotracker()
-        self.init_historical_regions()
-        self.start_detected_frames_processor()
-        self.start_camera_processors()
-        self.start_camera_capture_processes()
-        self.start_audio_processor()
-        self.start_storage_maintainer()
-        self.start_stats_emitter()
-        self.start_timeline_processor()
-        self.start_event_processor()
-        self.start_event_cleanup()
-        self.start_record_cleanup()
-        self.start_watchdog()
-
         self.init_auth()
+
+        has_enabled_cameras = any(c.enabled for c in self.config.cameras.values())
+
+        if has_enabled_cameras:
+            logger.info("Enabled cameras found. Starting full Frigate services.")
+
+            self.init_camera_metrics()
+            self.init_onvif()
+            self.init_recording_manager()
+            self.init_review_segment_manager()
+            self.init_go2rtc()
+            self.start_detectors()
+            self.init_embeddings_manager()
+            self.init_dispatcher()
+            self.init_embeddings_client()
+            self.start_video_output_processor()
+            self.start_ptz_autotracker()
+            self.init_historical_regions()
+            self.start_detected_frames_processor()
+            self.start_camera_processors()
+            self.start_camera_capture_processes()
+            self.start_audio_processor()
+            self.start_storage_maintainer()
+            self.start_stats_emitter()
+            self.start_timeline_processor()
+            self.start_event_processor()
+            self.start_event_cleanup()
+            self.start_record_cleanup()
+            self.start_watchdog()
+        else:
+            logger.warning("No cameras enabled. Kojent Frigate is running in idle mode.")
+            self.init_dispatcher()
+            self.start_timeline_processor()
+            self.start_event_processor()
+            self.start_event_cleanup()
+            self.start_record_cleanup()
 
         try:
             uvicorn.run(
