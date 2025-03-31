@@ -2,38 +2,47 @@
 # Uses Docker named volumes by default. Edit .env file to customize or use bind mounts.
 version: '3.9'
 
-# Defines named volumes used if CONFIG_VOLUME/MEDIA_VOLUME aren't overridden with host paths in .env
+# Defines named volumes used if the .env file uses these default names
 volumes:
-  ${CONFIG_VOLUME:-frigate_config}: # Default named volume for /config
-  ${MEDIA_VOLUME:-frigate_storage}: # Default named volume for /media/frigate
+  frigate_config:
+  frigate_storage:
 
 services:
   # Use 'kojent-frigate' or your actual fork name
   frigate:
     container_name: ${CONTAINER_NAME:-kojent-frigate} # Allow overriding name via .env
     image: ${KOJENT_IMAGE:-kojensy/kojent-frigate:latest} # Allow overriding image via .env
+
+    build:
+      context: .  # Keep context as '.' (the root directory containing all source)
+      dockerfile: docker/main/Dockerfile # Specify path to the Dockerfile relative to context
+
+
     restart: unless-stopped
-    privileged: true # Often needed for hardware access (USB, GPU passthrough etc.)
+    privileged: true 
     shm_size: ${SHM_SIZE:-1g} # Allow overriding SHM via .env, default 1g
     environment:
       - TZ=${TZ:-UTC} # Allow overriding Timezone via .env (e.g., America/Denver)
-    devices:
-      # --- Optional: Uncomment lines below if you use Coral devices or HW Accel ---
-      # Ensure the correct device path for your host system is used.
-      # - /dev/bus/usb:/dev/bus/usb # For Coral USB
-      # - /dev/dri:/dev/dri         # For Intel QuickSync (might be /dev/dri/renderD128)
-      # - /dev/apex_0:/dev/apex_0   # For Coral PCIe
+    
+    # --- Optional: Device Passthrough (Commented Out) ---
+    # Uncomment 'devices:' key and specific device lines if needed. Use correct host path.
+    # devices: 
+    #   - /dev/bus/usb:/dev/bus/usb # For Coral USB
+    #   - /dev/dri:/dev/dri         # For Intel QuickSync (/dev/dri/renderD128 often needed)
+    #   - /dev/apex_0:/dev/apex_0   # For Coral PCIe
+    # --------------------------------------------------
+      
     volumes:
       - /etc/localtime:/etc/localtime:ro # Sync timezone with host
       # --- Volume Setup (See .env.example and README.md) ---
-      # By default uses named volumes defined above.
-      # Edit .env file to override with host paths for bind mounts if preferred.
-      - ${CONFIG_VOLUME:-frigate_config}:/config
-      - ${MEDIA_VOLUME:-frigate_storage}:/media/frigate
+      # Uses named volumes (frigate_config, frigate_storage) defined above by default.
+      # Edit .env file (CONFIG_VOLUME, MEDIA_VOLUME) to override with host paths for bind mounts.
+      - ${CONFIG_VOLUME:-frigate_config}:/config 
+      - ${MEDIA_VOLUME:-frigate_storage}:/media/frigate 
       # ----------------------------------------------------
     ports:
       - "${WEB_PORT:-5000}:5000" # Frigate Web UI port
-    # Optional GPU reservation (requires Docker setup)
+    # Optional GPU reservation (requires Docker setup & uncommenting devices)
     # deploy:
     #   resources:
     #     reservations:
